@@ -1,0 +1,121 @@
+/* --------------------
+   Case Study Questions
+   --------------------*/
+
+-- 1. What is the total amount each customer spent at the restaurant?
+-- 2. How many days has each customer visited the restaurant?
+-- 3. What was the first item from the menu purchased by each customer?
+-- 4. What is the most purchased item on the menu and how many times was it purchased by all customers?
+-- 5. Which item was the most popular for each customer?
+-- 6. Which item was purchased first by the customer after they became a member?
+-- 7. Which item was purchased just before the customer became a member?
+-- 8. What is the total items and amount spent for each member before they became a member?
+-- 9.  If each $1 spent equates to 10 points and sushi has a 2x points multiplier - how many points would each customer have?
+
+#1
+select s.customer_id,sum(b.price) as total_price from
+dannys_diner.sales as s 
+inner join dannys_diner.menu as b on
+s.product_id=b.product_id
+group by s.customer_id
+order by total_price desc;
+
+#2
+SELECT customer_id,
+       count(DISTINCT order_date) AS visit_count
+FROM dannys_diner.sales
+GROUP BY customer_id
+ORDER BY customer_id;
+
+
+
+#3
+ with order_info_cte as
+ ( SELECT customer_id,
+          order_date,
+          product_name,
+          DENSE_RANK() OVER(PARTITION BY s.customer_id
+                            ORDER BY s.order_date) AS item_rank
+   FROM dannys_diner.sales AS s
+   JOIN dannys_diner.menu AS m ON s.product_id = m.product_id )
+   
+   select o.product_name,o.customer_id 
+   from order_info_cte as o
+   where item_rank=1
+   group by o.product_name,o.customer_id
+   order by customer_id;
+   
+   #4
+   select count(s.product_id) as  total,s.customer_id,m.product_name
+   from dannys_diner.menu m join dannys_diner.sales s
+   on s.product_id=m.product_id
+ group by s.customer_id,m.product_name
+ order by total desc
+ limit 3;
+ 
+ #5
+   select count(s.product_id) as  total,s.customer_id,m.product_name
+   from dannys_diner.menu m join dannys_diner.sales s
+   on s.product_id=m.product_id
+ group by s.customer_id,m.product_name
+ order by count(s.product_id) desc
+ limit 3;
+ 
+ #6 
+WITH diner_info AS
+  (SELECT product_name,
+          s.customer_id,
+          order_date,
+          join_date,
+          m.product_id,
+          DENSE_RANK() OVER(PARTITION BY s.customer_id
+                            ORDER BY s.order_date) AS first_item
+   FROM dannys_diner.menu AS m
+   INNER JOIN dannys_diner.sales AS s ON m.product_id = s.product_id
+   INNER JOIN dannys_diner.members AS mem ON mem.customer_id = s.customer_id
+   WHERE order_date >= join_date )
+   
+SELECT customer_id,
+       product_name,
+       order_date
+FROM diner_info
+WHERE first_item=1;
+
+#7
+WITH diner_info AS
+  (SELECT product_name,
+          s.customer_id,
+          order_date,
+          join_date,
+          m.product_id,
+          DENSE_RANK() OVER(PARTITION BY s.customer_id
+                            ORDER BY s.order_date) AS first_item
+   FROM dannys_diner.menu AS m
+   INNER JOIN dannys_diner.sales AS s ON m.product_id = s.product_id
+   INNER JOIN dannys_diner.members AS mem ON mem.customer_id = s.customer_id
+   WHERE order_date < join_date )
+   
+SELECT customer_id,
+       product_name,
+       order_date
+FROM diner_info
+WHERE first_item=1;
+
+#8
+select count(s.product_id),sum(m.price) as total,s.customer_id
+from dannys_diner.menu as m
+inner join dannys_diner.sales as s on m.product_id=s.product_id
+inner join dannys_diner.members as men on men.customer_id=s.customer_id
+where men.join_date>s.order_date
+group by s.customer_id;
+
+
+#9
+select customer_id,
+sum(case when m.product_name='sushi' then price*20
+    else price*10
+    end) as customer_points
+from dannys_diner.sales as s inner join dannys_diner.menu as m
+on s.product_id=m.product_id
+group by customer_id
+order by customer_points;
